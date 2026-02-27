@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ═══════════════════════════════════════════════════════
 // FIREBASE CONFIG — REEMPLAZA CON TUS DATOS (ver GUIA.md)
@@ -108,14 +108,16 @@ const AETDC_OPTIONS = [
   { value: 7, label: "7 – Mucha habilidad" },
 ];
 
-const EFT_ITEMS = [
-  { id: 0, instruction: "Ejercicio de práctica", simpleFigure: "T", description: "Encuentra la figura simple (forma de T) dentro de la figura compleja. Este es solo un ejemplo para que entiendas cómo funciona.", options: [{ id: "a", label: "Esquina superior izquierda", correct: false }, { id: "b", label: "Centro de la figura", correct: true }, { id: "c", label: "Parte inferior derecha", correct: false }, { id: "d", label: "No está presente", correct: false }] },
-  { id: 1, instruction: "Ejercicio 1 — Figura: forma de T", simpleFigure: "T", description: "En la siguiente figura compleja formada por múltiples rectángulos y líneas diagonales, ¿dónde se encuentra la forma de T?", options: [{ id: "a", label: "Parte central-izquierda, orientada hacia arriba", correct: true }, { id: "b", label: "Esquina inferior derecha, rotada 90°", correct: false }, { id: "c", label: "Parte superior, invertida", correct: false }, { id: "d", label: "No logro identificarla", correct: false }] },
-  { id: 2, instruction: "Ejercicio 2 — Figura: casa (pentágono)", simpleFigure: "⬠", description: "La figura simple es una forma de casa (cuadrado con techo triangular). Encuéntrala dentro de la figura compleja formada por líneas diagonales y rombos.", options: [{ id: "a", label: "Centro de la composición, misma orientación", correct: true }, { id: "b", label: "Esquina superior derecha, más pequeña", correct: false }, { id: "c", label: "Parte inferior, rotada", correct: false }, { id: "d", label: "No logro identificarla", correct: false }] },
-  { id: 3, instruction: "Ejercicio 3 — Figura: diamante", simpleFigure: "◇", description: "La figura simple es un rombo/diamante. Encuéntrala dentro de la figura compleja compuesta por cuadrados concéntricos y líneas cruzadas.", options: [{ id: "a", label: "Parte superior, entre líneas paralelas", correct: false }, { id: "b", label: "Justo en el centro de la composición", correct: true }, { id: "c", label: "Lateral izquierdo, parcialmente oculta", correct: false }, { id: "d", label: "No logro identificarla", correct: false }] },
-  { id: 4, instruction: "Ejercicio 4 — Figura: montaña irregular", simpleFigure: "⛰", description: "La figura simple tiene forma de montaña irregular (polígono con picos). Encuéntrala dentro de la figura compleja formada por hexágonos y líneas entrecruzadas.", options: [{ id: "a", label: "Esquina superior izquierda", correct: false }, { id: "b", label: "Parte inferior central", correct: false }, { id: "c", label: "Centro-derecha de la composición", correct: true }, { id: "d", label: "No logro identificarla", correct: false }] },
-  { id: 5, instruction: "Ejercicio 5 — Figura: triángulo", simpleFigure: "△", description: "La figura simple es un triángulo. Encuéntrala dentro de la figura compleja formada por múltiples triángulos superpuestos y líneas radiales.", options: [{ id: "a", label: "Centro exacto, apuntando hacia arriba", correct: true }, { id: "b", label: "Esquina derecha, apuntando hacia abajo", correct: false }, { id: "c", label: "Lateral izquierdo, inclinada", correct: false }, { id: "d", label: "No logro identificarla", correct: false }] },
+const EFT_EXERCISES = [
+  { id: 0, label: "Entrenamiento", image: "/eft/entrenamiento.png", timeLimit: 50, totalFigures: 10 },
+  { id: 1, label: "Ejercicio 1", image: "/eft/ejercicio1.png", timeLimit: 50, totalFigures: 10 },
+  { id: 2, label: "Ejercicio 2", image: "/eft/ejercicio2.png", timeLimit: 50, totalFigures: 10 },
+  { id: 3, label: "Ejercicio 3", image: "/eft/ejercicio3.png", timeLimit: 65, totalFigures: 10 },
+  { id: 4, label: "Ejercicio 4", image: "/eft/ejercicio4.png", timeLimit: 70, totalFigures: 10 },
 ];
+const EFT_EXAMPLE_IMG = "/eft/ejemplo.png";
+const EFT_EXAMPLE_SOL_IMG = "/eft/ejemplo_solucion.png";
+const EFT_TOTAL_EXERCISES = 4; // exercises 1-4 (not counting entrenamiento)
 
 // ═══════════════════════════════════════
 // SCORING
@@ -143,10 +145,12 @@ const scoreAETDC = (ans) => {
 };
 
 const scoreEFT = (ans) => {
-  let c = 0;
-  EFT_ITEMS.slice(1).forEach((it) => { if (ans[it.id] === it.options.find((o) => o.correct)?.id) c++; });
-  const t = EFT_ITEMS.length - 1;
-  return { correct: c, total: t, percentage: +((c / t) * 100).toFixed(0), style: c >= 4 ? "Independiente de campo" : c >= 2 ? "Intermedio" : "Dependiente de campo" };
+  let total = 0;
+  for (let i = 1; i <= EFT_TOTAL_EXERCISES; i++) {
+    total += (ans[i] || []).length;
+  }
+  const max = EFT_TOTAL_EXERCISES * 10;
+  return { total, max, percentage: +((total / max) * 100).toFixed(0), style: total >= Math.round(max * 0.7) ? "Independiente de campo" : total >= Math.round(max * 0.4) ? "Intermedio" : "Dependiente de campo" };
 };
 
 // ═══════════════════════════════════════
@@ -235,6 +239,11 @@ export default function App() {
   const [done, setDone] = useState(false);
   const [eftIdx, setEftIdx] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(true);
+  const [eftTimer, setEftTimer] = useState(0);
+  const [eftRunning, setEftRunning] = useState(false);
+  const [eftMarked, setEftMarked] = useState({});  // { exerciseId: [1,3,5,...] }
+  const eftTimerRef = useRef(null);
 
   useEffect(() => { fbGet("students").then((d) => setAllData(d || {})); }, []);
 
@@ -268,16 +277,18 @@ export default function App() {
   const handleSubmit = async () => {
     setLoading(true);
     let scores;
+    const isEft = test === "eft";
+    const eftData = isEft ? eftMarked : null;
+    
     if (test === "rosenberg") scores = scoreRosenberg(answers);
     else if (test === "mspss") scores = scoreMSPSS(answers);
     else if (test === "aetdc") scores = scoreAETDC(answers);
-    else if (test === "eft") scores = scoreEFT(answers);
+    else if (isEft) scores = scoreEFT(eftMarked);
 
-    const payload = { answers, scores, completedAt: new Date().toISOString() };
-    const path = test === "eft" ? `students/${student.doc}/eft` : `students/${student.doc}/${mode}/${test}`;
+    const payload = { answers: isEft ? eftMarked : answers, scores, completedAt: new Date().toISOString() };
+    const path = isEft ? `students/${student.doc}/eft` : `students/${student.doc}/${mode}/${test}`;
     await fbSet(path, payload);
 
-    // Update local state
     const updated = await fbGet(`students/${student.doc}`);
     setStudent(updated);
     setLoading(false);
@@ -285,7 +296,7 @@ export default function App() {
   };
 
   const isDone = (t, m) => { if (!student) return false; if (t === "eft") return !!student.eft; return !!student[m]?.[t]; };
-  const getTotal = (t) => ({ rosenberg: 10, mspss: 12, aetdc: 30, eft: EFT_ITEMS.length }[t] || 0);
+  const getTotal = (t) => ({ rosenberg: 10, mspss: 12, aetdc: 30, eft: EFT_TOTAL_EXERCISES * 10 }[t] || 0);
   const answered = Object.keys(answers).length;
   const total = test ? getTotal(test) : 0;
   const allDone = answered >= total;
@@ -306,7 +317,7 @@ export default function App() {
       });
       if (s.eft) {
         const sc = s.eft.scores;
-        rows.push([s.doc, s.name, s.group, GROUP_DISPLAY[s.group] || s.group, "unica", "EFT", `${sc.correct}/${sc.total}`, sc.total, sc.style, `${sc.percentage}%`, s.eft.completedAt]);
+        rows.push([s.doc, s.name, s.group, GROUP_DISPLAY[s.group] || s.group, "unica", "EFT", sc.total, sc.max, sc.style, `${sc.percentage}%`, s.eft.completedAt]);
       }
     });
     const blob = new Blob(["\uFEFF" + rows.map((r) => r.join(",")).join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -422,7 +433,7 @@ export default function App() {
             {tests.map((t) => {
               const d = isDone(t.id, mode);
               return (
-                <button key={t.id} onClick={() => { if (!d) { setTest(t.id); setAnswers({}); setDone(false); setEftIdx(0); setScreen("test"); } }}
+                <button key={t.id} onClick={() => { if (!d) { setTest(t.id); setAnswers({}); setDone(false); setEftIdx(0); setShowInstructions(true); setScreen("test"); } }}
                   style={{ padding: 18, borderRadius: 12, border: `1px solid ${d ? C.green + "40" : C.border}`, background: d ? C.green + "10" : C.card, color: C.text, textAlign: "left", cursor: d ? "default" : "pointer", opacity: d ? .7 : 1, display: "flex", alignItems: "center", gap: 14 }}>
                   <span style={{ fontSize: 28 }}>{t.icon}</span>
                   <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 600 }}>{t.name}</div><div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{t.desc}</div></div>
@@ -458,36 +469,162 @@ export default function App() {
 
     // EFT
     if (test === "eft") {
-      const item = EFT_ITEMS[eftIdx];
+      // EFT Instructions
+      if (showInstructions) return (
+        <div style={container}>
+          <div style={page}>
+            <div style={{ background: C.card, borderRadius: 16, padding: 28, border: `1px solid ${C.border}` }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <span style={{ fontSize: 48 }}>🧩</span>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: C.purple, marginTop: 12 }}>Test de Figuras Enmascaradas (EFT)</h2>
+                <p style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>Estilos Cognitivos — 5 ejercicios + 1 de entrenamiento</p>
+              </div>
+              <div style={{ background: C.input, borderRadius: 10, padding: 18, marginBottom: 16, lineHeight: 1.7, fontSize: 14, color: C.text }}>
+                <p style={{ marginBottom: 12 }}><strong style={{ color: C.purple }}>¿En qué consiste?</strong></p>
+                <p style={{ marginBottom: 12 }}>En cada ejercicio verás una <strong>figura simple</strong> (a la izquierda) y <strong>10 figuras complejas</strong> numeradas (a la derecha). La figura simple está escondida dentro de <strong>todas</strong> las figuras complejas.</p>
+                <p style={{ marginBottom: 12 }}>Tu tarea es identificar la figura simple dentro de las figuras complejas y <strong>marcar todas las que puedas</strong> antes de que se acabe el tiempo.</p>
+                <p style={{ marginBottom: 12 }}><strong style={{ color: C.purple }}>¿Cómo responder?</strong></p>
+                <p style={{ marginBottom: 12 }}>Haz clic en el <strong>número</strong> de cada figura compleja donde logres identificar la figura simple. Puedes marcar y desmarcar haciendo clic de nuevo.</p>
+                <p style={{ marginBottom: 12 }}><strong style={{ color: C.purple }}>⏱️ Tiempo limitado</strong></p>
+                <p style={{ marginBottom: 12 }}>Cada ejercicio tiene un tiempo distinto. Cuando el tiempo se agote, se pasará automáticamente al siguiente ejercicio.</p>
+                <p style={{ marginBottom: 0 }}>Primero verás un <strong>ejemplo</strong> para entender cómo funciona, y luego un ejercicio de <strong>entrenamiento</strong>.</p>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ color: C.muted, fontSize: 13, marginBottom: 8 }}>Ejemplo — Figura simple tipo T:</p>
+                <img src={EFT_EXAMPLE_IMG} alt="Ejemplo EFT" style={{ width: "100%", borderRadius: 8, border: `1px solid ${C.border}` }} />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ color: C.muted, fontSize: 13, marginBottom: 8 }}>Solución del ejemplo — La T está en todas:</p>
+                <img src={EFT_EXAMPLE_SOL_IMG} alt="Solución ejemplo EFT" style={{ width: "100%", borderRadius: 8, border: `1px solid ${C.border}` }} />
+              </div>
+              <button onClick={() => { setShowInstructions(false); setEftIdx(0); setEftMarked({}); }} style={btnP}>Comenzar prueba →</button>
+            </div>
+          </div>
+        </div>
+      );
+
+      const exercise = EFT_EXERCISES[eftIdx];
+      const marked = eftMarked[exercise.id] || [];
+      const isEntrenamiento = exercise.id === 0;
+
+      // Timer logic
+      const startTimer = () => {
+        setEftTimer(exercise.timeLimit);
+        setEftRunning(true);
+      };
+
+      const toggleFigure = (num) => {
+        if (!eftRunning && !isEntrenamiento) return; // can't mark if timer not running (except entrenamiento)
+        setEftMarked((prev) => {
+          const current = prev[exercise.id] || [];
+          const updated = current.includes(num) ? current.filter((n) => n !== num) : [...current, num];
+          return { ...prev, [exercise.id]: updated };
+        });
+      };
+
+      const goNext = () => {
+        setEftRunning(false);
+        clearInterval(eftTimerRef.current);
+        if (eftIdx < EFT_EXERCISES.length - 1) {
+          setEftIdx((i) => i + 1);
+          setEftTimer(0);
+        } else {
+          // Submit
+          setAnswers(eftMarked);
+          handleSubmit();
+        }
+      };
+
       return (
         <div style={container}>
           <div style={page}>
-            <ProgressBar current={eftIdx + 1} total={EFT_ITEMS.length} color={C.purple} />
-            <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <span style={{ display: "inline-block", padding: "4px 14px", borderRadius: 20, background: C.purple + "30", color: C.purple, fontSize: 12, fontWeight: 700 }}>🧩 EFT — Estilos Cognitivos</span>
+            <ProgressBar current={eftIdx + 1} total={EFT_EXERCISES.length} color={C.purple} />
+            
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ display: "inline-block", padding: "4px 14px", borderRadius: 20, background: C.purple + "30", color: C.purple, fontSize: 12, fontWeight: 700 }}>
+                🧩 {exercise.label} {isEntrenamiento ? "(no puntúa)" : ""}
+              </span>
+              {eftRunning && (
+                <span style={{
+                  padding: "6px 14px", borderRadius: 20, fontSize: 16, fontWeight: 700,
+                  background: eftTimer <= 10 ? C.red + "30" : C.accent + "20",
+                  color: eftTimer <= 10 ? C.red : C.accent,
+                  animation: eftTimer <= 10 ? "pulse 1s infinite" : "none",
+                }}>
+                  ⏱️ {eftTimer}s
+                </span>
+              )}
             </div>
-            <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: C.accent, marginBottom: 12 }}>{item.instruction}</h3>
-              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 80, fontSize: 56, marginBottom: 16, background: C.input, borderRadius: 8 }}>{item.simpleFigure}</div>
-              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>{item.description}</p>
+
+            {/* Exercise image */}
+            <div style={{ background: "#fff", borderRadius: 12, padding: 8, marginBottom: 16, border: `1px solid ${C.border}` }}>
+              <img src={exercise.image} alt={exercise.label} style={{ width: "100%", borderRadius: 8 }} />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {item.options.map((o) => (
-                <button key={o.id} onClick={() => handleAnswer(item.id, o.id)} style={{
-                  padding: 16, borderRadius: 10, border: `2px solid ${answers[item.id] === o.id ? C.purple : C.border}`,
-                  background: answers[item.id] === o.id ? C.purple + "20" : C.card,
-                  color: answers[item.id] === o.id ? C.purple : C.text, fontSize: 14, fontWeight: answers[item.id] === o.id ? 600 : 400, cursor: "pointer", textAlign: "left",
-                }}><span style={{ fontWeight: 700, marginRight: 8 }}>{o.id.toUpperCase()}.</span>{o.label}</button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-              {eftIdx > 0 && <button onClick={() => setEftIdx((i) => i - 1)} style={{ ...btnS, flex: 1 }}>← Anterior</button>}
-              {eftIdx < EFT_ITEMS.length - 1
-                ? <button onClick={() => { if (answers[item.id] != null) setEftIdx((i) => i + 1); }} disabled={answers[item.id] == null} style={{ ...btnP, flex: 1, opacity: answers[item.id] == null ? .4 : 1 }}>Siguiente →</button>
-                : <button onClick={handleSubmit} disabled={answers[item.id] == null || loading} style={{ ...btnP, flex: 1, background: `linear-gradient(135deg,${C.green},${C.greenDark})`, opacity: answers[item.id] == null ? .4 : 1 }}>{loading ? "Guardando..." : "Finalizar prueba ✓"}</button>
-              }
-            </div>
+
+            {/* Figure selection grid */}
+            {(eftRunning || isEntrenamiento) && (
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>Marca las figuras donde identificas la figura simple:</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                    <button key={num} onClick={() => toggleFigure(num)} style={{
+                      width: 52, height: 52, borderRadius: 10, fontSize: 18, fontWeight: 700,
+                      border: `2px solid ${marked.includes(num) ? C.purple : C.border}`,
+                      background: marked.includes(num) ? C.purple + "30" : C.card,
+                      color: marked.includes(num) ? C.purple : C.muted,
+                      cursor: "pointer", transition: "all .2s",
+                    }}>
+                      {marked.includes(num) ? `✓${num}` : num}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ color: C.dim, fontSize: 12, textAlign: "center", marginTop: 8 }}>
+                  {marked.length} de 10 marcadas
+                </p>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            {!eftRunning && !isEntrenamiento && eftTimer === 0 && (
+              <button onClick={() => {
+                setEftTimer(exercise.timeLimit);
+                setEftRunning(true);
+                const id = setInterval(() => {
+                  setEftTimer((t) => {
+                    if (t <= 1) {
+                      clearInterval(id);
+                      setEftRunning(false);
+                      return 0;
+                    }
+                    return t - 1;
+                  });
+                }, 1000);
+                eftTimerRef.current = id;
+              }} style={btnP}>
+                ⏱️ Iniciar ({exercise.timeLimit} segundos)
+              </button>
+            )}
+
+            {isEntrenamiento && (
+              <button onClick={goNext} style={btnP}>
+                Continuar al Ejercicio 1 →
+              </button>
+            )}
+
+            {!eftRunning && eftTimer === 0 && !isEntrenamiento && eftMarked[exercise.id] !== undefined && (
+              <div style={{ background: C.accent + "10", borderRadius: 10, padding: 14, marginBottom: 12, textAlign: "center" }}>
+                <p style={{ color: C.accent, fontSize: 14, fontWeight: 600 }}>⏱️ ¡Tiempo agotado!</p>
+                <p style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>Marcaste {marked.length} figuras en este ejercicio.</p>
+              </div>
+            )}
+
+            {!eftRunning && !isEntrenamiento && eftMarked[exercise.id] !== undefined && eftTimer === 0 && (
+              <button onClick={goNext} style={{ ...btnP, background: `linear-gradient(135deg,${C.green},${C.greenDark})`, marginTop: 8 }}>
+                {eftIdx < EFT_EXERCISES.length - 1 ? "Siguiente ejercicio →" : "Finalizar prueba ✓"}
+              </button>
+            )}
           </div>
+          <style>{`@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.5 } }`}</style>
         </div>
       );
     }
@@ -498,6 +635,87 @@ export default function App() {
     else if (test === "mspss") { items = MSPSS_ITEMS; options = MSPSS_OPTIONS; label = "Apoyo Social (MSPSS)"; icon = "🤝"; color = C.blue; }
     else { items = AETDC_ITEMS; options = AETDC_OPTIONS; label = "Autoeficacia Vocacional (AETDC)"; icon = "🎯"; color = C.green; }
 
+    // Instruction screens
+    if (showInstructions) {
+      let instrTitle, instrIcon, instrColor, instrText;
+
+      if (test === "rosenberg") {
+        instrTitle = "Escala de Autoestima de Rosenberg";
+        instrIcon = "💛"; instrColor = C.accent;
+        instrText = (
+          <>
+            <p style={{ marginBottom: 12 }}><strong style={{ color: C.accent }}>¿En qué consiste?</strong></p>
+            <p style={{ marginBottom: 12 }}>Esta prueba mide cómo te sientes contigo mismo/a. Contiene <strong>10 afirmaciones</strong> sobre ti. No hay respuestas buenas ni malas, lo importante es que respondas con sinceridad.</p>
+            <p style={{ marginBottom: 12 }}><strong style={{ color: C.accent }}>¿Cómo responder?</strong></p>
+            <p style={{ marginBottom: 8 }}>Para cada afirmación, selecciona la opción que mejor refleje cómo te sientes <strong>habitualmente</strong>:</p>
+            <div style={{ background: C.card, borderRadius: 8, padding: 14, marginBottom: 12 }}>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>Muy en desacuerdo</strong> — No me identifico para nada</p>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>En desacuerdo</strong> — No me identifico mucho</p>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>De acuerdo</strong> — Me identifico bastante</p>
+              <p style={{ marginBottom: 0 }}>🔹 <strong>Muy de acuerdo</strong> — Me identifico totalmente</p>
+            </div>
+            <p>Responde de forma espontánea, sin pensar demasiado en cada frase.</p>
+          </>
+        );
+      } else if (test === "mspss") {
+        instrTitle = "Escala de Apoyo Social Percibido (MSPSS)";
+        instrIcon = "🤝"; instrColor = C.blue;
+        instrText = (
+          <>
+            <p style={{ marginBottom: 12 }}><strong style={{ color: C.blue }}>¿En qué consiste?</strong></p>
+            <p style={{ marginBottom: 12 }}>Esta prueba evalúa cómo percibes el apoyo que recibes de las personas importantes en tu vida: <strong>familia, amigos y otras personas significativas</strong>. Contiene <strong>12 afirmaciones</strong>.</p>
+            <p style={{ marginBottom: 12 }}><strong style={{ color: C.blue }}>¿Cómo responder?</strong></p>
+            <p style={{ marginBottom: 8 }}>Para cada afirmación, selecciona el número que mejor represente <strong>qué tan de acuerdo estás</strong>:</p>
+            <div style={{ background: C.card, borderRadius: 8, padding: 14, marginBottom: 12 }}>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>1 = Muy en desacuerdo</strong> — No es así en absoluto</p>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>2 - 3</strong> — Más bien en desacuerdo</p>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>4 = Ni de acuerdo ni en desacuerdo</strong> — Neutral</p>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>5 - 6</strong> — Más bien de acuerdo</p>
+              <p style={{ marginBottom: 0 }}>🔹 <strong>7 = Muy de acuerdo</strong> — Totalmente de acuerdo</p>
+            </div>
+            <p>No hay respuestas correctas ni incorrectas. Responde según lo que sientes realmente.</p>
+          </>
+        );
+      } else {
+        instrTitle = "Autoeficacia en la Toma de Decisiones de Carrera (AETDC)";
+        instrIcon = "🎯"; instrColor = C.green;
+        instrText = (
+          <>
+            <p style={{ marginBottom: 12 }}><strong style={{ color: C.green }}>¿En qué consiste?</strong></p>
+            <p style={{ marginBottom: 12 }}>Esta prueba evalúa <strong>cuánta habilidad crees que tienes</strong> para realizar distintas actividades relacionadas con la elección de tu carrera o futuro profesional. Contiene <strong>30 situaciones</strong>.</p>
+            <p style={{ marginBottom: 12 }}><strong style={{ color: C.green }}>¿Cómo responder?</strong></p>
+            <p style={{ marginBottom: 8 }}>Para cada situación, selecciona el número que mejor represente <strong>cuánta habilidad sientes que tienes</strong> para resolverla:</p>
+            <div style={{ background: C.card, borderRadius: 8, padding: 14, marginBottom: 12 }}>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>1 = Ninguna habilidad</strong> — No sabría cómo hacerlo</p>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>2 - 3</strong> — Poca habilidad</p>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>4</strong> — Habilidad intermedia</p>
+              <p style={{ marginBottom: 6 }}>🔹 <strong>5 - 6</strong> — Bastante habilidad</p>
+              <p style={{ marginBottom: 0 }}>🔹 <strong>7 = Mucha habilidad</strong> — Me siento muy capaz</p>
+            </div>
+            <p>Responde pensando en lo que sientes ahora, no en lo que te gustaría sentir.</p>
+          </>
+        );
+      }
+
+      return (
+        <div style={container}>
+          <div style={page}>
+            <div style={{ background: C.card, borderRadius: 16, padding: 28, border: `1px solid ${C.border}` }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <span style={{ fontSize: 48 }}>{instrIcon}</span>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: instrColor, marginTop: 12 }}>{instrTitle}</h2>
+                <p style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>{items.length} ítems</p>
+              </div>
+              <div style={{ background: C.input, borderRadius: 10, padding: 18, marginBottom: 16, lineHeight: 1.7, fontSize: 14, color: C.text }}>
+                {instrText}
+              </div>
+              <button onClick={() => setShowInstructions(false)} style={btnP}>Comenzar prueba →</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={container}>
         <div style={page}>
@@ -506,11 +724,6 @@ export default function App() {
             <span style={{ display: "inline-block", padding: "4px 14px", borderRadius: 20, background: color + "30", color, fontSize: 12, fontWeight: 700 }}>{icon} {label}</span>
             <span style={{ color: C.muted, fontSize: 13, fontWeight: 600 }}>{answered}/{items.length}</span>
           </div>
-          {test === "aetdc" && (
-            <div style={{ background: C.accent + "10", border: `1px solid ${C.accent}30`, borderRadius: 10, padding: 14, marginBottom: 16, fontSize: 13, color: C.accentLight, lineHeight: 1.5 }}>
-              <strong>Instrucción:</strong> Evalúa CUÁNTA HABILIDAD CREES QUE TIENES para resolver cada situación. 1 = Ninguna habilidad, 7 = Mucha habilidad.
-            </div>
-          )}
           {items.map((it, i) => <LikertItem key={it.id} item={it} options={options} value={answers[it.id]} onChange={handleAnswer} idx={i} total={items.length} />)}
           <div style={{ position: "sticky", bottom: 0, padding: "16px 0", background: C.bg + "ee", backdropFilter: "blur(10px)" }}>
             <button onClick={handleSubmit} disabled={!allDone || loading} style={{
