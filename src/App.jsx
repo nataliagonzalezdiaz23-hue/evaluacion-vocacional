@@ -294,7 +294,8 @@ export default function App() {
     setPercepcionDone(true);
   };
 
-  const isPercepcionDone = () => !!student?.percepcion; if (!student) return false; return !!student[m]?.[t]; };
+  const isPercepcionDone = () => !!student?.percepcion;
+  const isDone = (t, m) => { if (!student) return false; return !!student[m]?.[t]; };
   const getTotal = (t) => ({ rosenberg: 10, mspss: 12, aetdc: 30 }[t] || 0);
   const answered = Object.keys(answers).length;
   const total = test ? getTotal(test) : 0;
