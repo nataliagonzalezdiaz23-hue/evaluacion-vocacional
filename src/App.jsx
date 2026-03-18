@@ -627,8 +627,7 @@ export default function App() {
 
           {PERCEPCION_ITEMS.map((it, i) => (
             <div key={it.id} style={{ background: C.card, borderRadius: 12, padding: "20px 24px", marginBottom: 14, border: `1px solid ${(percepcionAnswers[it.id] || "").trim() ? C.purple + "50" : C.border}`, transition: "all .3s" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ color: C.purple, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{it.bloque}</span>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
                 <span style={{ color: C.muted, fontSize: 11 }}>{i + 1} / {PERCEPCION_ITEMS.length}</span>
               </div>
               <p style={{ color: C.text, fontSize: 15, lineHeight: 1.5, marginBottom: 12 }}>{it.text}</p>
