@@ -109,6 +109,20 @@ const AETDC_OPTIONS = [
 ];
 
 // ═══════════════════════════════════════
+// ENCUESTA DE PERCEPCIÓN FINAL (8 preguntas abiertas)
+// ═══════════════════════════════════════
+const PERCEPCION_ITEMS = [
+  { id: 1, text: "¿Cómo describirías con tus propias palabras lo que viviste durante estas sesiones?", bloque: "Experiencia general" },
+  { id: 2, text: "¿Qué actividad o momento te pareció más significativo y por qué?", bloque: "Propuesta pedagógica" },
+  { id: 3, text: "¿Cómo te sentiste contigo mismo/a durante el proceso? ¿Reconociste alguna fortaleza que antes no habías notado?", bloque: "Autoestima" },
+  { id: 4, text: "¿Cambió algo en la claridad que tenías sobre tu futuro después del grado 11? ¿Qué te ayudó a eso?", bloque: "Toma de decisiones vocacionales" },
+  { id: 5, text: "¿Sentiste el apoyo de tus compañeros, docentes o familia durante el proceso? ¿Cómo se manifestó?", bloque: "Apoyo social" },
+  { id: 6, text: "¿Las herramientas digitales que usaron te ayudaron a explorar tus intereses y opciones? ¿Por qué sí o por qué no?", bloque: "TIC y formas de aprender" },
+  { id: 7, text: "¿Qué cambiarías o mejorarías de la experiencia?", bloque: "Retroalimentación" },
+  { id: 8, text: "¿Qué te llevas de esto para tu vida?", bloque: "Cierre y reflexión" },
+];
+
+// ═══════════════════════════════════════
 // SCORING
 // ═══════════════════════════════════════
 const scoreRosenberg = (ans) => {
@@ -219,6 +233,8 @@ export default function App() {
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
+  const [percepcionAnswers, setPercepcionAnswers] = useState({});
+  const [percepcionDone, setPercepcionDone] = useState(false);
 
   useEffect(() => { fbGet("students").then((d) => setAllData(d || {})); }, []);
 
@@ -266,13 +282,26 @@ export default function App() {
     setDone(true);
   };
 
-  const isDone = (t, m) => { if (!student) return false; return !!student[m]?.[t]; };
+  const handleSubmitPercepcion = async () => {
+    setLoading(true);
+    const allAnswered = PERCEPCION_ITEMS.every((it) => (percepcionAnswers[it.id] || "").trim().length > 0);
+    if (!allAnswered) { setLoading(false); return; }
+    const payload = { answers: percepcionAnswers, completedAt: new Date().toISOString() };
+    await fbSet(`students/${student.doc}/percepcion`, payload);
+    const updated = await fbGet(`students/${student.doc}`);
+    setStudent(updated);
+    setLoading(false);
+    setPercepcionDone(true);
+  };
+
+  const isPercepcionDone = () => !!student?.percepcion; if (!student) return false; return !!student[m]?.[t]; };
   const getTotal = (t) => ({ rosenberg: 10, mspss: 12, aetdc: 30 }[t] || 0);
   const answered = Object.keys(answers).length;
   const total = test ? getTotal(test) : 0;
   const allDone = answered >= total;
 
   const exportCSV = () => {
+    // Hoja 1: datos cuantitativos
     const rows = [["Documento", "Nombre", "Grupo_Interno", "Grupo_Visible", "Momento", "Prueba", "Puntaje_Total", "Puntaje_Max", "Nivel", "Detalles", "Fecha"]];
     Object.values(allData).forEach((s) => {
       ["pre", "post"].forEach((m) => {
@@ -287,6 +316,21 @@ export default function App() {
         });
       });
     });
+
+    // Hoja 2: encuesta de percepción (mismo CSV, sección separada)
+    rows.push([]);
+    rows.push(["=== ENCUESTA DE PERCEPCIÓN FINAL ==="]);
+    const percHeaders = ["Documento", "Nombre", "Grupo", "Fecha", ...PERCEPCION_ITEMS.map((it) => `P${it.id}: ${it.bloque}`)];
+    rows.push(percHeaders);
+    Object.values(allData).forEach((s) => {
+      if (s.percepcion) {
+        const ans = s.percepcion.answers || {};
+        const row = [s.doc, s.name, GROUP_DISPLAY[s.group] || s.group, s.percepcion.completedAt,
+          ...PERCEPCION_ITEMS.map((it) => `"${(ans[it.id] || "").replace(/"/g, '""')}"`)];
+        rows.push(row);
+      }
+    });
+
     const blob = new Blob(["\uFEFF" + rows.map((r) => r.join(",")).join("\n")], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = `resultados_pablo_neruda_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
@@ -365,6 +409,18 @@ export default function App() {
             }}>
               <div><div style={{ fontSize: 16, fontWeight: 700 }}>📋 Post-test</div><div style={{ fontSize: 12, fontWeight: 400, opacity: .8, marginTop: 4 }}>Evaluación final</div></div>
               {postDone && <span style={{ fontSize: 20 }}>✅</span>}
+            </button>
+            <button onClick={() => { setPercepcionAnswers({}); setPercepcionDone(false); setScreen("percepcion"); }} style={{
+              ...btnS, background: isPercepcionDone() ? C.greenDark : C.card,
+              color: isPercepcionDone() ? "#000" : C.text,
+              padding: 20, textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center",
+              border: `1px solid ${isPercepcionDone() ? C.green + "60" : C.purple + "60"}`,
+            }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>💬 Encuesta de percepción</div>
+                <div style={{ fontSize: 12, fontWeight: 400, opacity: .8, marginTop: 4 }}>Cuestionario final — 8 preguntas abiertas</div>
+              </div>
+              {isPercepcionDone() ? <span style={{ fontSize: 20 }}>✅</span> : <span style={{ color: C.purple, fontSize: 12, fontWeight: 600 }}>Nuevo</span>}
             </button>
           </div>
           <button onClick={() => { setScreen("login"); setStudent(null); setIsAdmin(false); }}
@@ -541,6 +597,68 @@ export default function App() {
   }
 
   // ═══════════════════════
+  // ENCUESTA DE PERCEPCIÓN
+  // ═══════════════════════
+  if (screen === "percepcion") {
+    if (percepcionDone || isPercepcionDone()) return (
+      <div style={container}>
+        <div style={page}>
+          <div style={{ textAlign: "center", paddingTop: 40 }}>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>💬</div>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: C.green, marginBottom: 8 }}>¡Encuesta completada!</h2>
+            <p style={{ color: C.muted, fontSize: 14, marginBottom: 32 }}>Tus respuestas han sido guardadas. ¡Gracias por tu participación en este proceso!</p>
+            <button onClick={() => setScreen("selectMode")} style={{ ...btnP, maxWidth: 300 }}>← Volver al inicio</button>
+          </div>
+        </div>
+      </div>
+    );
+
+    const allAnswered = PERCEPCION_ITEMS.every((it) => (percepcionAnswers[it.id] || "").trim().length > 0);
+
+    return (
+      <div style={container}>
+        <div style={page}>
+          <div style={header}>
+            <span style={{ display: "inline-block", padding: "4px 12px", borderRadius: 20, background: C.purple + "30", color: C.purple, fontSize: 12, fontWeight: 700, marginBottom: 8 }}>ENCUESTA FINAL</span>
+            <h2 style={{ fontSize: 20, fontWeight: 700 }}>💬 Encuesta de Percepción</h2>
+            <p style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>Responde con sinceridad — no hay respuestas correctas o incorrectas</p>
+          </div>
+
+          {PERCEPCION_ITEMS.map((it, i) => (
+            <div key={it.id} style={{ background: C.card, borderRadius: 12, padding: "20px 24px", marginBottom: 14, border: `1px solid ${(percepcionAnswers[it.id] || "").trim() ? C.purple + "50" : C.border}`, transition: "all .3s" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ color: C.purple, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{it.bloque}</span>
+                <span style={{ color: C.muted, fontSize: 11 }}>{i + 1} / {PERCEPCION_ITEMS.length}</span>
+              </div>
+              <p style={{ color: C.text, fontSize: 15, lineHeight: 1.5, marginBottom: 12 }}>{it.text}</p>
+              <textarea
+                value={percepcionAnswers[it.id] || ""}
+                onChange={(e) => setPercepcionAnswers((p) => ({ ...p, [it.id]: e.target.value }))}
+                placeholder="Escribe tu respuesta aquí..."
+                rows={3}
+                style={{
+                  width: "100%", padding: "12px 14px", borderRadius: 8, border: `1px solid ${(percepcionAnswers[it.id] || "").trim() ? C.purple + "60" : C.border}`,
+                  background: C.input, color: C.text, fontSize: 14, lineHeight: 1.5, resize: "vertical",
+                  outline: "none", fontFamily: "inherit", boxSizing: "border-box", transition: "border .2s",
+                }}
+              />
+            </div>
+          ))}
+
+          <div style={{ position: "sticky", bottom: 0, padding: "16px 0", background: C.bg + "ee", backdropFilter: "blur(10px)" }}>
+            <button onClick={handleSubmitPercepcion} disabled={!allAnswered || loading} style={{
+              ...btnP, background: allAnswered ? `linear-gradient(135deg,${C.purple},#7c3aed)` : C.border,
+              color: allAnswered ? "#fff" : C.dim, cursor: allAnswered ? "pointer" : "not-allowed",
+            }}>{loading ? "Guardando..." : allAnswered ? "Enviar encuesta ✓" : `Faltan ${PERCEPCION_ITEMS.filter((it) => !(percepcionAnswers[it.id] || "").trim()).length} respuestas`}</button>
+          </div>
+
+          <button onClick={() => setScreen("selectMode")} style={{ ...btnS, marginTop: 8, padding: 12, fontSize: 13, background: "transparent", border: "none", color: C.dim }}>← Volver</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════
   // ADMIN DASHBOARD
   // ═══════════════════════
   if (screen === "admin") {
@@ -566,6 +684,7 @@ export default function App() {
             <ScoreCard label="Total registrados" value={students.length} color={C.accent} />
             <ScoreCard label="11-01 (Grupo A)" value={g1.length} color={C.green} />
             <ScoreCard label="11-02 (Grupo B)" value={g2.length} color={C.blue} />
+            <ScoreCard label="Encuestas percepción" value={students.filter(s => s.percepcion).length} color={C.purple} />
           </div>
 
           <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}`, marginBottom: 20, overflowX: "auto" }}>
@@ -599,12 +718,14 @@ export default function App() {
                 {students.map((s) => {
                   const pre = ["rosenberg", "mspss", "aetdc"].filter((t) => s.pre?.[t]).length;
                   const post = ["rosenberg", "mspss", "aetdc"].filter((t) => s.post?.[t]).length;
+                  const perc = !!s.percepcion;
                   return (
                     <div key={s.doc} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
                       <div><span style={{ fontWeight: 600 }}>{s.name}</span><span style={{ color: C.dim, marginLeft: 8 }}>{s.group} ({GROUP_DISPLAY[s.group]})</span></div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <span style={{ color: pre === 3 ? C.green : C.dim, fontSize: 11 }}>Pre: {pre}/3</span>
                         <span style={{ color: post === 3 ? C.green : C.dim, fontSize: 11 }}>Post: {post}/3</span>
+                        <span style={{ color: perc ? C.purple : C.dim, fontSize: 11 }}>💬 {perc ? "✓" : "—"}</span>
                         <button onClick={async () => {
                           if (confirm(`¿Eliminar a ${s.name} (${s.doc})? Se borrarán todas sus respuestas.`)) {
                             await fetch(`${DB_URL}/students/${s.doc}.json`, { method: "DELETE" });
