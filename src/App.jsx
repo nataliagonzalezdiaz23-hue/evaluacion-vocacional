@@ -318,22 +318,29 @@ export default function App() {
       });
     });
 
-    // Hoja 2: encuesta de percepción (mismo CSV, sección separada)
+    // Función para escapar celdas CSV (maneja comas, comillas y saltos de línea)
+    const esc = (val) => {
+      const s = String(val == null ? "" : val).replace(/\r\n/g, " ").replace(/\n/g, " ").replace(/\r/g, " ");
+      if (s.includes(",") || s.includes('"') || s.includes(";")) return `"${s.replace(/"/g, '""')}"`; 
+      return s;
+    };
+
+    // Sección 2: encuesta de percepción
     rows.push([]);
     rows.push(["=== ENCUESTA DE PERCEPCIÓN FINAL ==="]);
-    const percHeaders = ["Documento", "Nombre", "Grupo", "Fecha", ...PERCEPCION_ITEMS.map((it) => `P${it.id}: ${it.bloque}`)];
+    const percHeaders = ["Documento", "Nombre", "Grupo", "Fecha", ...PERCEPCION_ITEMS.map((it) => `P${it.id}_${it.bloque}`)];
     rows.push(percHeaders);
     Object.values(allData).forEach((s) => {
       if (s.percepcion) {
         const ans = s.percepcion.answers || {};
         const row = [s.doc, s.name, GROUP_DISPLAY[s.group] || s.group, s.percepcion.completedAt,
-          ...PERCEPCION_ITEMS.map((it) => `"${(ans[it.id] || "").replace(/"/g, '""')}"`)];
+          ...PERCEPCION_ITEMS.map((it) => esc(ans[it.id] || ""))];
         rows.push(row);
       }
     });
 
-    const blob = new Blob(["\uFEFF" + rows.map((r) => r.join(",")).join("\n")], { type: "text/csv;charset=utf-8;" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    const blob = new Blob(["\uFEFF" + rows.map((r) => r.map(esc).join(",")).join("\n")], { type: "text/csv;charset=utf-8;" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = `resultados_pablo_neruda_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
   };
 
